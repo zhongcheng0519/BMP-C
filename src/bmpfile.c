@@ -1,10 +1,10 @@
 /**
- * @file bmpfile.c
- * @brief The BMP library implementation
+ * @file bmpfile.h
+ * @brief The BMP library header
  *
- * libbmp - BMP library
- * Copyright (C) 2009 lidaibin(超越无限)
- * mail: lidaibin@gmail.com
+ * BMP-C - BMP C library
+ * Portable BMP file C lib
+ * mail: zhongcheng0519@gmail.com
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -346,7 +346,7 @@ bmp_create_header(uint32_t width, uint32_t height, uint32_t depth)
  * Create the BMP object with specified width and height and depth.
  */
 bmpfile_t *
-bmp_create(uint32_t width, uint32_t height, uint32_t depth, rgb_pixel_t init_color)
+bmp_create(uint32_t width, uint32_t height, uint32_t depth)
 {
     bmpfile_t* result;
     if ( (result = bmp_create_header(width, height, depth)) == NULL )
@@ -356,7 +356,7 @@ bmp_create(uint32_t width, uint32_t height, uint32_t depth, rgb_pixel_t init_col
     bmp_malloc_pixels(result);
     // malloc color map space
     bmp_malloc_colors(result);
-
+	return result;
 
 #if 0
   bmpfile_t *result;
@@ -412,6 +412,48 @@ bmp_create(uint32_t width, uint32_t height, uint32_t depth, rgb_pixel_t init_col
 }
 
 static void
+bmp_read_data_for_1(bmpfile_t* bmp, FILE* fp)
+{
+    int x,y,z;
+    for (y = bmp->dib.height-1; y >=0; y--)
+    {
+        for (x = 0; x < bmp->dib.width; x+=8)
+        {
+			uint8_t bw_value,single_bit_value;
+            fread(&bw_value, 1,1,fp);
+
+			for(z = 0; z < 8; z++)
+			{
+				single_bit_value = (bw_value>>(7-z) & 0x1);
+				bmp->pixels[x + z][y] = bmp->colors[single_bit_value];
+			}
+			
+
+		}
+    }
+}
+
+
+static void
+bmp_read_data_for_4(bmpfile_t* bmp, FILE* fp)
+{
+    int x,y,z;
+    for (y = bmp->dib.height-1; y >=0; y--)
+    {
+        for (x = 0; x < bmp->dib.width; x+=2)
+        {
+			uint8_t bw_value,single_bit_value;
+            fread(&bw_value, 1,1,fp);
+			for(z = 0; z < 2; z++)
+			{
+				single_bit_value = (bw_value>>(4*(1-z))) & 0x0f;
+				bmp->pixels[x+z][y] = bmp->colors[single_bit_value];
+			}
+        }
+    }
+}
+
+static void
 bmp_read_data_for_8(bmpfile_t* bmp, FILE* fp)
 {
     int x,y;
@@ -421,10 +463,7 @@ bmp_read_data_for_8(bmpfile_t* bmp, FILE* fp)
         {
             uint8_t gray_value;
             fread(&gray_value, 1,1,fp);
-            bmp->pixels[x][y].red = gray_value;
-            bmp->pixels[x][y].green = gray_value;
-            bmp->pixels[x][y].blue = gray_value;
-            bmp->pixels[x][y].alpha = 0;
+			bmp->pixels[x][y] = bmp->colors[gray_value];
         }
     }
 }
@@ -443,6 +482,24 @@ bmp_read_data_for_24(bmpfile_t* bmp, FILE* fp)
             bmp->pixels[x][y].green = bgr[1];
             bmp->pixels[x][y].red = bgr[2];
             bmp->pixels[x][y].alpha = 0;
+        }
+    }
+}
+
+static void
+bmp_read_data_for_32(bmpfile_t* bmp, FILE* fp)
+{
+    int x,y;
+    uint8_t bgr[3];
+    for (y = bmp->dib.height-1; y >=0; y--)
+    {
+        for (x = 0; x < bmp->dib.width; x++)
+        {
+            fread(bgr, 1,4,fp);
+            bmp->pixels[x][y].blue = bgr[0];
+            bmp->pixels[x][y].green = bgr[1];
+            bmp->pixels[x][y].red = bgr[2];
+            bmp->pixels[x][y].alpha = bgr[4];
         }
     }
 }
@@ -500,8 +557,10 @@ bmp_create_from_file(const char *filename)
     switch (result->dib.depth)
     {
     case 1:
+		bmp_read_data_for_1(result,fp);
         break;
     case 4:
+		bmp_read_data_for_4(result,fp);
         break;
     case 8:
         bmp_read_data_for_8(result, fp);
@@ -512,6 +571,7 @@ bmp_create_from_file(const char *filename)
         bmp_read_data_for_24(result, fp);
         break;
     case 32:
+		bmp_read_data_for_32(result,fp);
         break;
     default:
         break;
@@ -811,6 +871,59 @@ bmp_get_row_data_for_32(bmpfile_t *bmp, unsigned char *buf, size_t buf_len,
     memcpy(buf + 4 * i, (uint8_t *)&(bmp->pixels[i][row]), 4);
 }
 
+bool 
+bmp_cvt_format(bmpfile_t *bmp_in, bmpfile_t *bmp_out, uint32_t cvt_format)
+{
+	uint32_t width,height,depth_in;
+	double bytes_per_pixel;
+	uint32_t bytes_per_line;
+	uint32_t palette_size;
+	rgb_pixel_t *cur_pixel;
+	uint32_t i;
+	uint32_t j;
+
+	width =  bmp_get_width(bmp_in);
+	height = bmp_get_height(bmp_in);
+	depth_in = bmp_get_depth(bmp_in);
+
+	bmp_out->header.magic[0] = 'B';
+	bmp_out->header.magic[1] = 'M';
+	bmp_out->dib.header_sz = 40;
+	bmp_out->dib.width = width;
+	bmp_out->dib.height = height;
+	bmp_out->dib.nplanes = 1;
+	bmp_out->dib.depth = cvt_format;
+	bmp_out->dib.hres = 0;
+	bmp_out->dib.vres = 0;
+
+	bytes_per_pixel = (cvt_format * 1.0) / 8.0;
+    bytes_per_line = (int)ceil(bytes_per_pixel * width);
+
+	if (bytes_per_line % 4 != 0)
+		bytes_per_line += 4 - bytes_per_line % 4;
+	if (cvt_format == FT_16BIT)
+		bmp_out->dib.compress_type = BI_BITFIELDS;
+	else
+		bmp_out->dib.compress_type = BI_RGB;
+
+	bmp_out->dib.bmp_bytesz = bytes_per_line * height;
+
+	palette_size = bmp_malloc_colors(bmp_out);
+
+	for (i = 0; i < width; i++)
+	{
+		for(j = 0; j < height; j++)
+		{
+			cur_pixel = bmp_get_pixel(bmp_in, i, j);
+			bmp_set_pixel(bmp_out,i,j,*cur_pixel);
+		}
+	}
+	
+	bmp_out->header.offset = 14 + bmp_out->dib.header_sz + palette_size;
+	bmp_out->header.filesz = bmp_out->header.offset + bmp_out->dib.bmp_bytesz;
+	return TRUE;
+}
+
 bool
 bmp_save(bmpfile_t *bmp, const char *filename)
 {
@@ -842,7 +955,7 @@ bmp_save(bmpfile_t *bmp, const char *filename)
 	uint16_t blue = (uint16_t)(bmp->pixels[i][row].blue / 8);
 	uint16_t value = (red << 11) + (green << 5) + blue;
 
-	if (_is_big_endian()) value = UINT16_SWAP_LE_BE_CONSTANT(value);
+	if (_is_big_endian()) value =  (value);
 	fwrite(&value, sizeof(uint16_t), 1, fp);
       }
 

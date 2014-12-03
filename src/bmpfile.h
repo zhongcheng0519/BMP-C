@@ -2,9 +2,9 @@
  * @file bmpfile.h
  * @brief The BMP library header
  *
- * libbmp - BMP library
- * Copyright (C) 2009 lidaibin(超越无限)
- * mail: lidaibin@gmail.com
+ * BMP-C - BMP C library
+ * Portable BMP file C lib
+ * mail: zhongcheng0519@gmail.com
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -63,6 +63,17 @@ typedef enum {
   BI_JPEG,
   BI_PNG,
 } bmp_compression_method_t;
+
+typedef enum {
+  FT_1BIT = 1,
+  FT_4BIT = 4,
+  FT_8BIT = 8,
+  FT_16BIT = 16,
+  FT_24BIT = 24,
+  FT_32BIT = 32,
+} bmp_cvt_method_t;
+
+
 
 typedef struct {
   uint8_t blue;
@@ -134,6 +145,8 @@ void bmp_set_dpi(bmpfile_t *bmp, uint32_t x, uint32_t y);
 
 rgb_pixel_t *bmp_get_pixel(bmpfile_t *bmp, uint32_t x, uint32_t y);
 bool bmp_set_pixel(bmpfile_t *bmp, uint32_t x, uint32_t y, rgb_pixel_t pixel);
+
+bool bmp_cvt_format(bmpfile_t *bmp_in, bmpfile_t *bmp_out,  uint32_t cvt_format);
 
 bool bmp_save(bmpfile_t *bmp, const char *filename);
 

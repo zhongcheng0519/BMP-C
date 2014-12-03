@@ -4,16 +4,23 @@
 
 #define NCLOLORS 256
 
+
+
 int test_read_write(const char* in_fn, const char* out_fn)
 {
     bmpfile_t* in_bmp;
+	bmpfile_t* out;
+
     in_bmp = bmp_create_from_file(in_fn);
     if (in_bmp == NULL)
     {
         return -1;
     }
-    
-    bmp_save(in_bmp, out_fn);
+	out = bmp_create(bmp_get_width(in_bmp),bmp_get_height(in_bmp),bmp_get_depth(in_bmp));
+
+	bmp_cvt_format(in_bmp,out,FT_16BIT);
+
+    bmp_save(out, out_fn);
 }
 
 
