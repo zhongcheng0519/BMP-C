@@ -490,7 +490,7 @@ static void
 bmp_read_data_for_32(bmpfile_t* bmp, FILE* fp)
 {
     int x,y;
-    uint8_t bgr[3];
+    uint8_t bgr[4];
     for (y = bmp->dib.height-1; y >=0; y--)
     {
         for (x = 0; x < bmp->dib.width; x++)
@@ -499,7 +499,7 @@ bmp_read_data_for_32(bmpfile_t* bmp, FILE* fp)
             bmp->pixels[x][y].blue = bgr[0];
             bmp->pixels[x][y].green = bgr[1];
             bmp->pixels[x][y].red = bgr[2];
-            bmp->pixels[x][y].alpha = bgr[4];
+            bmp->pixels[x][y].alpha = bgr[3];
         }
     }
 }
